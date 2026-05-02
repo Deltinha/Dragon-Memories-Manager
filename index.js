@@ -665,7 +665,7 @@ jQuery(async function () {
     });
 
     // ── generate_interceptor ─────────────────────────────────────────────────
-    // ST passes an ephemeral copy of the chat array here before prompt assembly.
+    // ST passes coreChat (filtered, spread-copied) to the interceptor.
     // Mutations to `chat` never touch the real chat — no restore step needed.
 
     globalThis.hideMessagesInterceptor = async function (chat) {
@@ -683,10 +683,25 @@ jQuery(async function () {
         }
         if (maxEnd < 0) return;
 
-        const count = Math.min(maxEnd + 1, chat.length);
-        chat.splice(0, count);
-        dmmDevLog(`Interceptor: ephemerally removed ${count} messages (0–${maxEnd}) for "${charName}"`);
-        dmmLog(`Hide: ephemerally removed ${count} messages (0–${maxEnd}) for "${charName}"`);
+        const fullChat = getContext().chat;
+
+        const hiddenExtras = new Set();
+        const limit = Math.min(maxEnd + 1, fullChat.length);
+        for (let i = 0; i < limit; i++) {
+            if (fullChat[i].extra) hiddenExtras.add(fullChat[i].extra);
+        }
+
+        let removed = 0;
+        for (let i = chat.length - 1; i >= 0; i--) {
+            if (chat[i].extra && hiddenExtras.has(chat[i].extra)) {
+                chat.splice(i, 1);
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            dmmLog(`Hide: ephemerally removed ${removed} messages (original 0–${maxEnd}) for "${charName}"`);
+        }
     };
 
     // ── qvink bridge ─────────────────────────────────────────────────────────
