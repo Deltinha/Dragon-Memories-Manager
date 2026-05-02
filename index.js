@@ -667,18 +667,6 @@ jQuery(async function () {
     // ── generate_interceptor ─────────────────────────────────────────────────
     // ST passes coreChat (filtered, spread-copied) to the interceptor.
     // Mutations to `chat` never touch the real chat — no restore step needed.
-    //
-    // ST creates coreChat by:
-    //   1. Filtering out is_system messages: chat.filter(x => !x.is_system || ...)
-    //   2. Spread-copying each entry: { ...chatItem, mes, index }
-    // chat[i] !== ctx.chat[j] (different objects), so we can't use object
-    // identity. But the spread is shallow — `extra` keeps the same reference.
-    // We match chat entries to ctx.chat[0..maxEnd] via `extra` reference,
-    // falling back to (is_user, name, mes prefix) for messages without extra.
-    //
-    // Presence extension may set is_system=true on user/assistant messages
-    // where the generating character wasn't present. Those are filtered by ST
-    // before reaching the interceptor, so we only need to handle the rest.
 
     globalThis.hideMessagesInterceptor = async function (chat) {
         const charName = getGeneratingCharName();
@@ -698,23 +686,14 @@ jQuery(async function () {
         const fullChat = getContext().chat;
 
         const hiddenExtras = new Set();
-        const hiddenKeys = new Set();
         const limit = Math.min(maxEnd + 1, fullChat.length);
         for (let i = 0; i < limit; i++) {
-            const msg = fullChat[i];
-            if (msg.extra && typeof msg.extra === 'object') {
-                hiddenExtras.add(msg.extra);
-            } else {
-                hiddenKeys.add(`${msg.is_user}|${msg.name}|${String(msg.mes || '').substring(0, 80)}`);
-            }
+            if (fullChat[i].extra) hiddenExtras.add(fullChat[i].extra);
         }
 
         let removed = 0;
         for (let i = chat.length - 1; i >= 0; i--) {
-            const msg = chat[i];
-            const match = (msg.extra && hiddenExtras.has(msg.extra))
-                || hiddenKeys.has(`${msg.is_user}|${msg.name}|${String(msg.mes || '').substring(0, 80)}`);
-            if (match) {
+            if (chat[i].extra && hiddenExtras.has(chat[i].extra)) {
                 chat.splice(i, 1);
                 removed++;
             }
